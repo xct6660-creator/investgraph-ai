@@ -1,0 +1,356 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>InvestGraph AI</title>
+    <meta name="theme-color" content="#0e1218" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="InvestGraph" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <link rel="manifest" href="manifest.webmanifest" />
+    <link rel="apple-touch-icon" href="icon.svg" />
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <div class="app-shell">
+      <header class="topbar">
+        <div class="brand">
+          <span class="brand-mark">IG</span>
+          <div>
+            <h1>InvestGraph AI</h1>
+            <p>A股 · 美股 · 异动归因 · 产业链图谱</p>
+          </div>
+        </div>
+        <form class="search" id="search-form">
+          <label class="visually-hidden" for="symbol-input">股票代码</label>
+          <input id="symbol-input" name="symbol" value="688122" autocomplete="off" />
+          <button class="primary-button" type="submit" title="分析股票">分析</button>
+        </form>
+      </header>
+
+      <main>
+        <section class="quickbar" aria-label="快速示例">
+          <span class="quick-label">A股</span>
+          <button class="quick-button" data-symbol="688122">西部超导</button>
+          <button class="quick-button" data-symbol="300750">宁德时代</button>
+          <button class="quick-button" data-symbol="600519">贵州茅台</button>
+          <button class="quick-button" data-symbol="688981">中芯国际</button>
+          <button class="quick-button" data-symbol="830799">艾融软件</button>
+          <span class="quick-label">美股</span>
+          <button class="quick-button" data-symbol="NVDA">NVDA</button>
+          <button class="quick-button" data-symbol="TSLA">TSLA</button>
+          <button class="quick-button" data-symbol="AAPL">AAPL</button>
+          <button class="quick-button" data-symbol="MSFT">MSFT</button>
+        </section>
+
+        <section class="status-band" id="status-band">
+          <div class="loading-line"></div>
+          <span>正在加载第一份研究报告...</span>
+        </section>
+
+        <section class="device-access" id="device-access" aria-label="跨设备访问">
+          <span>设备访问</span>
+          <div id="device-access-links">正在检测 Mac 和手机访问地址...</div>
+        </section>
+
+        <section class="workspace-grid">
+          <article class="panel v2-panel">
+            <div class="panel-header">
+              <div>
+                <h2>Watchlist 自选股</h2>
+                <p>A股和美股同列追踪</p>
+              </div>
+            </div>
+            <form class="inline-form" id="watchlist-form">
+              <label class="visually-hidden" for="watchlist-input">加入自选股</label>
+              <input id="watchlist-input" name="symbol" placeholder="600519 / NVDA" autocomplete="off" />
+              <button class="secondary-button" type="submit">加入</button>
+            </form>
+            <div class="chip-list" id="watchlist-list"></div>
+          </article>
+
+          <article class="panel v2-panel">
+            <div class="panel-header compact-header">
+              <div>
+                <h2>报告历史</h2>
+                <p id="history-subtitle">当前股票</p>
+              </div>
+              <button class="secondary-button" id="save-report-button" type="button">保存</button>
+            </div>
+            <div class="history-list" id="history-list"></div>
+          </article>
+
+          <article class="panel v2-panel">
+            <div class="panel-header compact-header">
+              <div>
+                <h2>每日简报</h2>
+                <p id="briefing-subtitle">自选股异动</p>
+              </div>
+              <button class="secondary-button" id="briefing-button" type="button">生成</button>
+            </div>
+            <div class="briefing-list" id="briefing-list"></div>
+          </article>
+        </section>
+
+        <section class="overview-grid">
+          <article class="metric-tile">
+            <span>目标公司</span>
+            <strong id="company-name">-</strong>
+            <small id="symbol-label">-</small>
+          </article>
+          <article class="metric-tile">
+            <span>最新价格</span>
+            <strong id="last-price">-</strong>
+            <small id="last-date">-</small>
+          </article>
+          <article class="metric-tile">
+            <span>当日变动</span>
+            <strong id="day-change">-</strong>
+            <small id="volume-ratio">-</small>
+          </article>
+          <article class="metric-tile">
+            <span>研究排序第一</span>
+            <strong id="top-candidate">-</strong>
+            <small id="top-score">-</small>
+          </article>
+        </section>
+
+        <section class="main-grid">
+          <article class="panel chart-panel">
+            <div class="panel-header">
+              <div>
+                <h2>行情图表</h2>
+                <p id="chart-subtitle">1 年日线</p>
+              </div>
+              <div class="chart-control-row">
+                <div class="timeframe" aria-label="图表模式">
+                  <button class="timeframe-button" data-chart-mode="intraday">分时</button>
+                  <button class="timeframe-button is-active" data-chart-mode="kline">K线</button>
+                </div>
+                <div class="timeframe" aria-label="K线周期">
+                  <button class="timeframe-button is-active" data-kline-period="day">日K</button>
+                  <button class="timeframe-button" data-kline-period="week">周K</button>
+                  <button class="timeframe-button" data-kline-period="month">月K</button>
+                </div>
+                <div class="timeframe" aria-label="时间区间">
+                  <button class="timeframe-button is-active" data-range="1y">1Y</button>
+                  <button class="timeframe-button" data-range="6m">6M</button>
+                  <button class="timeframe-button" data-range="3m">3M</button>
+                </div>
+                <div class="chart-toolbox" aria-label="图表工具">
+                  <button class="chart-tool-button" type="button" data-chart-tool="pan-left" title="向左平移">←</button>
+                  <button class="chart-tool-button" type="button" data-chart-tool="zoom-out" title="缩小">−</button>
+                  <button class="chart-tool-button" type="button" data-chart-tool="zoom-in" title="放大">＋</button>
+                  <button class="chart-tool-button" type="button" data-chart-tool="pan-right" title="向右平移">→</button>
+                  <button class="chart-tool-button" type="button" data-chart-tool="draw-line" title="画趋势线">画线</button>
+                  <button class="chart-tool-button" type="button" data-chart-tool="clear-lines" title="清除画线">清除</button>
+                </div>
+              </div>
+            </div>
+            <div class="chart-wrap" id="price-chart" aria-label="价格走势图"></div>
+          </article>
+
+          <article class="panel memo-panel">
+            <div class="panel-header">
+              <div>
+                <h2>AI 研究备忘</h2>
+                <p id="memo-subtitle">证据驱动，不构成投资建议</p>
+              </div>
+            </div>
+            <p class="memo-stance" id="memo-stance">-</p>
+            <div class="memo-columns">
+              <div>
+                <h3>看多理由</h3>
+                <ul id="bullish-list"></ul>
+              </div>
+              <div>
+                <h3>看空/风险</h3>
+                <ul id="bearish-list"></ul>
+              </div>
+            </div>
+          </article>
+        </section>
+
+        <section class="analysis-grid">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>涨跌原因候选</h2>
+                <p>按价格、新闻、成交量、产业链同步性归因</p>
+              </div>
+            </div>
+            <div class="driver-list" id="driver-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>主题热度</h2>
+                <p>近期新闻关键词聚类</p>
+              </div>
+            </div>
+            <div class="topic-list" id="topic-list"></div>
+          </article>
+        </section>
+
+        <section class="panel evidence-panel">
+          <div class="panel-header compact-header">
+            <div>
+              <h2>证据分级 / AI 审核</h2>
+              <p id="evidence-meta">硬事实、软催化、市场解读和传闻拆分</p>
+            </div>
+            <strong class="evidence-score" id="evidence-score">-</strong>
+          </div>
+          <div class="evidence-summary" id="evidence-verdict">-</div>
+          <div class="evidence-grid">
+            <div>
+              <h3>最高优先级证据</h3>
+              <div class="evidence-list" id="evidence-list"></div>
+            </div>
+            <div>
+              <h3>必须核实的问题</h3>
+              <ul class="check-list" id="evidence-question-list"></ul>
+            </div>
+          </div>
+        </section>
+
+        <section class="panel profit-panel">
+          <div class="panel-header compact-header">
+            <div>
+              <h2>赚钱系统工作台</h2>
+              <p>回测、信号统计、仓位、风控、Paper Trading 和复盘</p>
+            </div>
+            <div class="lab-actions">
+              <select id="strategy-select" aria-label="策略模板">
+                <option value="volume_breakout">放量突破</option>
+                <option value="trend_following">趋势跟随</option>
+                <option value="pullback_momentum">强势回踩</option>
+                <option value="reversal_repair">超跌修复</option>
+              </select>
+              <button class="secondary-button" id="backtest-button" type="button">回测</button>
+              <button class="secondary-button" id="plan-button" type="button">仓位</button>
+              <button class="secondary-button" id="paper-button" type="button">模拟</button>
+              <button class="secondary-button" id="daily-picks-button" type="button">推荐</button>
+              <button class="secondary-button" id="cycle-button" type="button">闭环</button>
+              <button class="secondary-button" id="nightly-button" type="button">深挖</button>
+              <button class="secondary-button" id="diagnostics-button" type="button">自检</button>
+              <button class="secondary-button" id="review-button" type="button">复盘</button>
+            </div>
+          </div>
+          <div class="profit-grid">
+            <article class="profit-card">
+              <h3>回测结果</h3>
+              <div class="mini-metrics" id="backtest-summary"></div>
+              <div class="strategy-table" id="signal-stats"></div>
+            </article>
+            <article class="profit-card">
+              <h3>买卖点 / 仓位</h3>
+              <div class="trade-plan" id="trade-plan"></div>
+            </article>
+            <article class="profit-card">
+              <h3>Paper Trading</h3>
+              <div class="paper-list" id="paper-portfolio"></div>
+            </article>
+            <article class="profit-card daily-picks-card">
+              <h3>每日推荐候选</h3>
+              <div class="daily-pick-list" id="daily-picks"></div>
+            </article>
+            <article class="profit-card daily-cycle-card">
+              <h3>实战闭环</h3>
+              <div class="daily-cycle-list" id="daily-cycle"></div>
+            </article>
+            <article class="profit-card nightly-card">
+              <h3>夜间全量深挖</h3>
+              <div class="nightly-list" id="nightly-deep-dive"></div>
+            </article>
+            <article class="profit-card diagnostics-card">
+              <h3>系统自检</h3>
+              <div class="diagnostics-list" id="system-diagnostics"></div>
+            </article>
+            <article class="profit-card investor-qa-card">
+              <h3>投资者质检</h3>
+              <div class="investor-qa-list" id="investor-qa"></div>
+            </article>
+            <article class="profit-card briefing-outcome-card">
+              <h3>简报收益复盘</h3>
+              <div class="briefing-outcome-list" id="briefing-outcomes"></div>
+            </article>
+            <article class="profit-card next-upgrade-card">
+              <h3>下一步升级</h3>
+              <div class="next-upgrade-list" id="next-upgrades"></div>
+            </article>
+            <article class="profit-card">
+              <h3>自动复盘 / 数据源</h3>
+              <div class="review-list" id="auto-review"></div>
+              <div class="source-list" id="data-source-list"></div>
+            </article>
+          </div>
+        </section>
+
+        <section class="panel network-panel">
+          <div class="panel-header">
+            <div>
+              <h2>上下游产业链</h2>
+              <p id="chain-source">-</p>
+            </div>
+          </div>
+          <div class="chain-thesis" id="chain-thesis">-</div>
+          <div class="network-wrap" id="network-graph"></div>
+        </section>
+
+        <section class="panel">
+          <div class="panel-header">
+            <div>
+              <h2>候选公司排序</h2>
+              <p>综合动量、催化、关系强度、质量、估值和风险</p>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>公司</th>
+                  <th>关系</th>
+                  <th>价格</th>
+                  <th>当日</th>
+                  <th>1月</th>
+                  <th>3月</th>
+                  <th>评分</th>
+                </tr>
+              </thead>
+              <tbody id="candidate-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>近期新闻</h2>
+                <p>打开原文核实催化强度</p>
+              </div>
+            </div>
+            <div class="news-list" id="news-list"></div>
+          </article>
+
+          <article class="panel">
+            <div class="panel-header">
+              <div>
+                <h2>下一步验证</h2>
+                <p>投资假设追踪清单</p>
+              </div>
+            </div>
+            <ul class="check-list" id="verify-list"></ul>
+            <div class="fundamentals" id="fundamentals"></div>
+          </article>
+        </section>
+
+        <section class="notes" id="data-notes"></section>
+      </main>
+    </div>
+
+    <script src="app.js"></script>
+  </body>
+</html>

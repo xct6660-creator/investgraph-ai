@@ -1,0 +1,6 @@
+.env
+*.log
+data/
+node_modules/
+.Rhistory
+.DS_Store

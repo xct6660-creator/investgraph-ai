@@ -1,0 +1,19 @@
+{
+  "name": "InvestGraph AI",
+  "short_name": "InvestGraph",
+  "description": "A股和美股研究、简报、观察单和模拟盘工作台",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "background_color": "#0e1218",
+  "theme_color": "#0e1218",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
