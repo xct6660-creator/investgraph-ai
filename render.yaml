@@ -2,7 +2,7 @@ services:
   - type: web
     name: investgraph-ai
     env: node
-    plan: starter
+    plan: free
     buildCommand: npm install
     startCommand: npm start
     healthCheckPath: /api/health
@@ -14,7 +14,7 @@ services:
       - key: DATA_STORAGE
         value: local-json
       - key: DATA_DIR
-        value: /var/data
+        value: ./data
       - key: APP_USERNAME
         value: investgraph
       - key: APP_PASSWORD
@@ -27,7 +27,3 @@ services:
         sync: false
       - key: AI_MODEL
         sync: false
-    disk:
-      name: investgraph-data
-      mountPath: /var/data
-      sizeGB: 1
