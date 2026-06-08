@@ -20,6 +20,7 @@ const BRIEFING_CACHE_FILE = path.join(DATA_DIR, "briefing-latest.json");
 const DAILY_PICKS_CACHE_FILE = path.join(DATA_DIR, "daily-picks-latest.json");
 const DAILY_CYCLE_CACHE_FILE = path.join(DATA_DIR, "daily-cycle-latest.json");
 const NIGHTLY_DEEP_DIVE_CACHE_FILE = path.join(DATA_DIR, "nightly-deep-dive-latest.json");
+const AI_MISPRICING_CACHE_FILE = path.join(DATA_DIR, "ai-mispricing-latest.json");
 const APP_USER_AGENT =
   process.env.SEC_USER_AGENT ||
   "CodexInvestResearch/0.1 research@example.com";
@@ -92,6 +93,29 @@ const advancedThemeUniverse = [
   { symbol: "688525.SS", theme: "存储/先进封装", thesis: "存储模组和先进封装相关，波动大。" },
 ];
 
+const aiMispricingUniverse = [
+  { symbol: "NVDA", theme: "AI加速器/GPU", thesis: "数据中心GPU、网络和CUDA生态，是AI资本开支最核心的锚。" },
+  { symbol: "AMD", theme: "AI加速器/GPU", thesis: "MI系列加速卡追赶英伟达，关键看云厂商导入和毛利率。" },
+  { symbol: "AVGO", theme: "AI网络/ASIC", thesis: "AI交换芯片、定制ASIC和网络基础设施受益于数据中心扩容。" },
+  { symbol: "TSM", theme: "先进制程/代工", thesis: "AI芯片先进制程和先进封装核心代工方。" },
+  { symbol: "ASML", theme: "半导体设备/EUV", thesis: "先进制程瓶颈设备，受AI芯片扩产周期影响。" },
+  { symbol: "ARM", theme: "AI端侧/CPU IP", thesis: "端侧AI和数据中心CPU IP授权，估值常受AI叙事放大。" },
+  { symbol: "MU", theme: "HBM/存储", thesis: "HBM和DRAM周期受AI服务器需求拉动。" },
+  { symbol: "SMCI", theme: "AI服务器", thesis: "AI服务器集成商，弹性强但财务和订单质量需要严格核实。" },
+  { symbol: "ANET", theme: "AI数据中心网络", thesis: "高速交换机和云数据中心网络升级受益。" },
+  { symbol: "PLTR", theme: "AI软件/数据平台", thesis: "企业AI应用和政府数据平台，关键看收入增速能否匹配估值。" },
+  { symbol: "MSFT", theme: "AI云/应用", thesis: "Azure AI、Copilot 和企业软件分发渠道。" },
+  { symbol: "AAPL", theme: "端侧AI/消费电子", thesis: "端侧AI和生态分发，关键看AI功能是否转化为换机周期。" },
+  { symbol: "TSLA", theme: "自动驾驶/机器人", thesis: "FSD、机器人和能源系统带有AI期权，估值常提前反映远期叙事。" },
+  { symbol: "GOOGL", theme: "AI云/模型/广告", thesis: "Gemini、TPU、云和搜索广告重构，关注资本开支回报。" },
+  { symbol: "META", theme: "AI应用/广告", thesis: "AI推荐、广告效率和自研AI基础设施。" },
+  { symbol: "AMZN", theme: "AI云/电商", thesis: "AWS AI服务与自研芯片，关键看云增长和资本开支回报。" },
+  { symbol: "ORCL", theme: "AI云/数据库", thesis: "云基础设施和数据库客户迁移，需验证AI订单兑现。" },
+  { symbol: "CRWD", theme: "AI安全", thesis: "安全平台与AI威胁检测，估值与增速匹配度是核心。" },
+  { symbol: "SNOW", theme: "AI数据平台", thesis: "数据云与AI工作负载，关键看消费增长恢复。" },
+  { symbol: "DDOG", theme: "AI运维/云监控", thesis: "云监控和AI工作负载观测，受企业云开支周期影响。" },
+];
+
 const paperRiskPolicy = {
   maxSinglePositionPct: 12,
   maxThemeExposurePct: 30,
@@ -108,6 +132,22 @@ const symbolDisplayNames = {
   "600519.SS": "贵州茅台",
   "688981.SS": "中芯国际",
   NVDA: "英伟达",
+  AMD: "AMD",
+  AVGO: "博通",
+  TSM: "台积电",
+  ASML: "阿斯麦",
+  ARM: "Arm",
+  MU: "美光科技",
+  SMCI: "超微电脑",
+  ANET: "Arista Networks",
+  PLTR: "Palantir",
+  GOOGL: "谷歌",
+  META: "Meta",
+  AMZN: "亚马逊",
+  ORCL: "甲骨文",
+  CRWD: "CrowdStrike",
+  SNOW: "Snowflake",
+  DDOG: "Datadog",
   AAPL: "苹果",
   MSFT: "微软",
   TSLA: "特斯拉",
@@ -3149,7 +3189,6 @@ function normalizeSymbols(symbols) {
 
 function displayNameForSymbol(symbol) {
   const normalized = normalizeSymbol(symbol);
-  if (!isMainlandASymbol(normalized)) return normalized;
   return symbolDisplayNames[normalized] || normalized;
 }
 
@@ -3859,6 +3898,363 @@ function buildRecommendationUniverse(watchlist, limit) {
   }));
   const unique = uniqueBySymbol([...watchItems, ...themeItems]);
   return unique.slice(0, limit);
+}
+
+function isAiRelatedThemeText(value) {
+  return /AI|算力|光模块|光通信|芯片|半导体|数据中心|服务器|云|大模型|软件|机器人|智能|存储|先进封装|晶圆|CPU|GPU|端侧|网络|液冷|电力/i.test(
+    String(value || ""),
+  );
+}
+
+function buildAiMispricingUniverse(watchlist, limit) {
+  const knownAiItems = [
+    ...advancedThemeUniverse
+      .filter((item) => isAiRelatedThemeText(`${item.theme} ${item.thesis}`))
+      .map((item) => ({ ...item, source: "A股AI/先进科技主题池" })),
+    ...aiMispricingUniverse.map((item) => ({ ...item, source: "美股AI核心池" })),
+  ];
+  const knownAiBySymbol = new Map(knownAiItems.map((item) => [normalizeSymbol(item.symbol), item]));
+  const watchItems = (watchlist.symbols || [])
+    .map((symbol) => normalizeSymbol(symbol))
+    .filter((symbol) => knownAiBySymbol.has(symbol))
+    .map((symbol) => {
+      const known = knownAiBySymbol.get(symbol);
+      return {
+        symbol,
+        source: `自选股 · ${known.source}`,
+        theme: known.theme,
+        thesis: known.thesis,
+      };
+    });
+  const aShareThemeItems = advancedThemeUniverse
+    .filter((item) => isAiRelatedThemeText(`${item.theme} ${item.thesis}`))
+    .map((item) => ({
+      symbol: normalizeSymbol(item.symbol),
+      source: "A股AI/先进科技主题池",
+      theme: item.theme,
+      thesis: item.thesis,
+    }));
+  const usAiItems = aiMispricingUniverse.map((item) => ({
+    symbol: normalizeSymbol(item.symbol),
+    source: "美股AI核心池",
+    theme: item.theme,
+    thesis: item.thesis,
+  }));
+  return uniqueBySymbol([...watchItems, ...aShareThemeItems, ...usAiItems])
+    .filter((item) => item.symbol)
+    .slice(0, limit);
+}
+
+function pctLabel(value) {
+  return Number.isFinite(value) ? `${round(value, 2)}%` : "-";
+}
+
+function multipleLabel(value) {
+  return Number.isFinite(value) && value > 0 ? round(value, 1) : null;
+}
+
+function valuationRiskScore(fundamentals) {
+  const pe = firstFinite(fundamentals?.forwardPE, fundamentals?.trailingPE);
+  const pb = safeNumber(fundamentals?.priceToBook);
+  let score = 48;
+  if (Number.isFinite(pe)) {
+    if (pe <= 0) score += 22;
+    else if (pe < 18) score -= 20;
+    else if (pe < 35) score -= 8;
+    else if (pe < 60) score += 8;
+    else if (pe < 100) score += 24;
+    else score += 36;
+  } else {
+    score += 8;
+  }
+  if (Number.isFinite(pb)) {
+    if (pb < 3) score -= 10;
+    else if (pb > 18) score += 24;
+    else if (pb > 10) score += 15;
+  }
+  return clamp(score, 8, 96);
+}
+
+function qualityScoreFromFundamentals(fundamentals) {
+  const revenueGrowthPct = Number.isFinite(fundamentals?.revenueGrowth) ? fundamentals.revenueGrowth * 100 : null;
+  const marginPct = Number.isFinite(fundamentals?.profitMargins) ? fundamentals.profitMargins * 100 : null;
+  const debtToEquity = safeNumber(fundamentals?.debtToEquity);
+  return clamp(
+    48 +
+      (Number.isFinite(revenueGrowthPct) ? revenueGrowthPct * 0.55 : -3) +
+      (Number.isFinite(marginPct) ? marginPct * 0.35 : 0) -
+      (Number.isFinite(debtToEquity) ? Math.max(0, debtToEquity - 2) * 8 : 0),
+    5,
+    96,
+  );
+}
+
+function expectationsScoreFromChart(chart) {
+  const metrics = chart?.metrics || {};
+  const day = safeNumber(chart?.dayChangePct) || 0;
+  const oneMonth = safeNumber(metrics.return1m) || 0;
+  const threeMonth = safeNumber(metrics.return3m) || 0;
+  const volume = safeNumber(metrics.volumeRatio) || 1;
+  return clamp(35 + Math.max(0, day) * 2 + Math.max(0, oneMonth) * 0.8 + Math.max(0, threeMonth) * 0.35 + Math.max(0, volume - 1) * 14, 5, 98);
+}
+
+function underreactionScoreFromChart(chart) {
+  const metrics = chart?.metrics || {};
+  const oneMonth = safeNumber(metrics.return1m) || 0;
+  const threeMonth = safeNumber(metrics.return3m) || 0;
+  const drawdown = safeNumber(metrics.maxDrawdown1y) || 0;
+  return clamp(62 - Math.max(0, oneMonth) * 0.65 - Math.max(0, threeMonth) * 0.24 + Math.max(0, Math.abs(drawdown) - 22) * 0.35, 8, 94);
+}
+
+function evidenceScoreFromReview(evidenceReview) {
+  return clamp(
+    (safeNumber(evidenceReview?.confidence) || 42) * 0.65 +
+      Math.min(24, (evidenceReview?.hardEvidenceCount || 0) * 8) +
+      Math.min(8, (evidenceReview?.industryCatalystCount || 0) * 3) -
+      Math.min(16, (evidenceReview?.rumorCount || 0) * 8),
+    8,
+    96,
+  );
+}
+
+function proofGapScore(evidenceReview) {
+  return clamp(
+    35 +
+      ((evidenceReview?.hardEvidenceCount || 0) === 0 ? 28 : 0) +
+      Math.max(0, 70 - (safeNumber(evidenceReview?.confidence) || 42)) * 0.35 +
+      Math.min(18, (evidenceReview?.routineEvidenceCount || 0) * 3) +
+      Math.min(18, (evidenceReview?.rumorCount || 0) * 8),
+    5,
+    98,
+  );
+}
+
+function aiPathwayForCandidate(universeItem, analysis) {
+  const profileText = `${analysis.fundamentals?.industry || ""} ${analysis.fundamentals?.sector || ""} ${analysis.companyProfile?.businessScope || ""}`;
+  if (isAiRelatedThemeText(universeItem.theme)) return universeItem.theme;
+  if (/服务器|数据中心|云/i.test(profileText)) return "AI数据中心/云基础设施";
+  if (/芯片|半导体|集成电路|晶圆|封装/i.test(profileText)) return "AI芯片/半导体供应链";
+  if (/人工智能|大模型|AI|软件|云计算|数据中心|数据平台|数据库/i.test(profileText)) return "AI软件/数据平台";
+  if (/机器人|自动化|智能/i.test(profileText)) return "机器人/智能制造";
+  return universeItem.theme || "AI相关度待验证";
+}
+
+function buildMispricingEvidenceItems(analysis) {
+  return (analysis.evidenceReview?.items || [])
+    .filter((item) => item.catalystType !== "价格复述")
+    .slice(0, 3)
+    .map((item) => ({
+      title: item.title || item.summary || "",
+      source: item.source || "",
+      sourceTier: item.sourceTier || "",
+      catalystType: item.catalystType || "",
+      level: item.level || "",
+      polarity: item.polarity || "",
+      summary: item.summary || item.excerpt || "",
+      url: item.url || "",
+      publishedAt: item.publishedAt || "",
+    }));
+}
+
+function scoreAiMispricingCandidate(universeItem, analysis) {
+  const fundamentals = analysis.fundamentals || {};
+  const chart = analysis.chart || {};
+  const metrics = chart.metrics || {};
+  const evidenceReview = analysis.evidenceReview || {};
+  const valuationRisk = valuationRiskScore(fundamentals);
+  const valuationSupport = clamp(100 - valuationRisk, 5, 96);
+  const quality = qualityScoreFromFundamentals(fundamentals);
+  const expectations = expectationsScoreFromChart(chart);
+  const underreaction = underreactionScoreFromChart(chart);
+  const evidence = evidenceScoreFromReview(evidenceReview);
+  const gap = proofGapScore(evidenceReview);
+  const aiPathway = aiPathwayForCandidate(universeItem, analysis);
+  const verifiedAiPathway = aiPathway && !aiPathway.includes("待验证");
+  const aiExposureSupport = verifiedAiPathway
+    ? universeItem.source?.includes("AI") || isAiRelatedThemeText(universeItem.theme)
+      ? 78
+      : 58
+    : 28;
+  const undervaluedScore = clamp(
+    aiExposureSupport * 0.18 +
+      evidence * 0.24 +
+      quality * 0.2 +
+      valuationSupport * 0.22 +
+      underreaction * 0.16 -
+      Math.max(0, expectations - 72) * 0.18,
+    0,
+    100,
+  );
+  const overvaluedScore = clamp(
+    aiExposureSupport * 0.12 +
+      valuationRisk * 0.28 +
+      expectations * 0.27 +
+      gap * 0.23 +
+      Math.max(0, 52 - quality) * 0.1,
+    0,
+    100,
+  );
+  const pe = firstFinite(fundamentals.forwardPE, fundamentals.trailingPE);
+  const evidenceItems = buildMispricingEvidenceItems(analysis);
+  const isAshare = isMainlandASymbol(analysis.symbol);
+  const positiveEvidence = (evidenceItems || []).find((item) => item.polarity === "positive");
+  const negativeEvidence = (evidenceItems || []).find((item) => item.polarity === "negative");
+  const hasPositivePe = Number.isFinite(pe) && pe > 0;
+  const displayName = displayNameForSymbol(analysis.symbol);
+  const valuationText = hasPositivePe
+    ? `PE约${round(pe, 1)}，${valuationRisk >= 70 ? "估值压力大" : valuationRisk <= 42 ? "估值压力相对低" : "估值处于中性区间"}`
+    : "PE缺失、亏损或不可比，需要用营收、利润率和订单质量继续验证";
+  const trendText = `当日${pctLabel(chart.dayChangePct)}，1月${pctLabel(metrics.return1m)}，3月${pctLabel(metrics.return3m)}，量比${round(metrics.volumeRatio, 2) ?? "-"}`;
+  const base = {
+    generatedAt: new Date().toISOString(),
+    symbol: analysis.symbol,
+    companyName: displayName && displayName !== analysis.symbol ? displayName : analysis.companyName,
+    market: isAshare ? "A股" : "美股",
+    source: universeItem.source,
+    theme: universeItem.theme,
+    aiPathway,
+    thesis: universeItem.thesis,
+    price: chart.lastClose ?? null,
+    currency: chart.currency || "",
+    dayChangePct: chart.dayChangePct ?? null,
+    return1m: metrics.return1m ?? null,
+    return3m: metrics.return3m ?? null,
+    volumeRatio: metrics.volumeRatio ?? null,
+    maxDrawdown1y: metrics.maxDrawdown1y ?? null,
+    marketCap: fundamentals.marketCap ?? null,
+    pe: multipleLabel(pe),
+    priceToBook: multipleLabel(fundamentals.priceToBook),
+    revenueGrowthPct: Number.isFinite(fundamentals.revenueGrowth) ? round(fundamentals.revenueGrowth * 100, 2) : null,
+    netMarginPct: Number.isFinite(fundamentals.profitMargins) ? round(fundamentals.profitMargins * 100, 2) : null,
+    evidenceConfidence: evidenceReview.confidence ?? null,
+    hardEvidenceCount: evidenceReview.hardEvidenceCount || 0,
+    evidenceVerdict: evidenceReview.verdict || "",
+    topDriver: analysis.memo?.topDriver || analysis.drivers?.[0]?.title || "",
+    evidenceItems,
+    scores: {
+      undervalued: round(undervaluedScore, 1),
+      overvalued: round(overvaluedScore, 1),
+      valuationRisk: round(valuationRisk, 1),
+      quality: round(quality, 1),
+      expectations: round(expectations, 1),
+      evidence: round(evidence, 1),
+      proofGap: round(gap, 1),
+    },
+    facts: [
+      `AI路径：${aiPathway}`,
+      valuationText,
+      trendText,
+      `证据置信度${round(evidenceReview.confidence, 1) ?? "-"}，硬事实${evidenceReview.hardEvidenceCount || 0}条`,
+    ],
+  };
+  return {
+    ...base,
+    undervaluedCase: {
+      score: round(undervaluedScore, 1),
+      label: undervaluedScore >= 72 ? "优先深挖" : undervaluedScore >= 60 ? "观察低估" : "低估证据不足",
+      why:
+        undervaluedScore >= 60
+          ? `${aiPathway}有可解释路径，${valuationText}；股价尚未明显透支或经历回撤，适合作为研究候选。`
+          : `${aiPathway}相关度存在，但估值、基本面或证据不足，暂不当作低估机会。`,
+      evidence: positiveEvidence
+        ? `${positiveEvidence.source || "来源"}：${positiveEvidence.title || positiveEvidence.summary}`
+        : evidenceReview.hardEvidenceCount
+          ? `硬事实${evidenceReview.hardEvidenceCount}条，但需要打开原文确认金额、客户和持续性。`
+          : "缺少公司级订单、财报或客户证据，不能只靠AI标签认定低估。",
+      firstRejection:
+        valuationRisk >= 72
+          ? "估值已经偏高，若没有订单/利润兑现，低估假设会被否决。"
+          : "若AI收入占比无法在公告、财报或客户中验证，应降级为普通主题观察。",
+      nextWorkflow: isAshare
+        ? "下一步核实公告、互动易/上证e互动、投资者关系活动和财报分部。"
+        : "下一步核实10-K/10-Q、财报电话会、订单/客户披露和管理层指引。",
+    },
+    overvaluedCase: {
+      score: round(overvaluedScore, 1),
+      label: overvaluedScore >= 72 ? "高估警报" : overvaluedScore >= 60 ? "估值门槛" : "高估证据不足",
+      why:
+        overvaluedScore >= 60
+          ? `${valuationText}；${trendText}，但硬证据${evidenceReview.hardEvidenceCount || 0}条，存在预期先行风险。`
+          : "当前还不足以判断严重高估，更多是普通波动或数据不足。",
+      evidence: negativeEvidence
+        ? `${negativeEvidence.source || "来源"}：${negativeEvidence.title || negativeEvidence.summary}`
+        : gap >= 65
+          ? "价格/估值反应强于可验证证据，主要风险是叙事走在基本面前面。"
+          : "证据缺口不大，不能仅凭上涨或高PE判定严重高估。",
+      firstRejection:
+        evidenceReview.hardEvidenceCount >= 2 && quality >= 66
+          ? "若后续订单、收入增长和利润率继续兑现，高估判断可能失效。"
+          : "若没有新订单、客户或利润改善，高估风险会继续上升。",
+      nextWorkflow: "加入复盘观察：跟踪未来1/5/20日表现、下一次公告和财报是否兑现AI叙事。",
+    },
+  };
+}
+
+async function buildAiMispricingScan(options = {}) {
+  const limit = Math.max(12, Math.min(120, Number(options.limit) || 72));
+  const watchlist = await getWatchlist();
+  const universe = buildAiMispricingUniverse(watchlist, limit);
+  const rows = await mapWithConcurrency(universe, 3, async (universeItem) => {
+    const analysis = await withTimeout(
+      analyzeSymbol(universeItem.symbol, { fetchEvidenceSourceText: false }),
+      Number(options.symbolTimeoutMs) || 18_000,
+      `${universeItem.symbol} AI错价扫描超时`,
+    );
+    return scoreAiMispricingCandidate(universeItem, analysis);
+  });
+  const valid = rows.filter((item) => item && !item.error);
+  const errors = rows
+    .map((item, index) => (item?.error ? { symbol: universe[index]?.symbol, companyName: displayNameForSymbol(universe[index]?.symbol), error: item.error } : null))
+    .filter(Boolean)
+    .slice(0, 12);
+  const undervalued = valid
+    .map((item) => ({
+      ...item,
+      mispricingSide: "潜在低估",
+      score: item.undervaluedCase.score,
+      action: item.undervaluedCase.label,
+      why: item.undervaluedCase.why,
+      evidence: item.undervaluedCase.evidence,
+      firstRejection: item.undervaluedCase.firstRejection,
+      nextWorkflow: item.undervaluedCase.nextWorkflow,
+    }))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 12);
+  const overvalued = valid
+    .map((item) => ({
+      ...item,
+      mispricingSide: "严重高估",
+      score: item.overvaluedCase.score,
+      action: item.overvaluedCase.label,
+      why: item.overvaluedCase.why,
+      evidence: item.overvaluedCase.evidence,
+      firstRejection: item.overvaluedCase.firstRejection,
+      nextWorkflow: item.overvaluedCase.nextWorkflow,
+    }))
+    .sort((a, b) => (b.score || 0) - (a.score || 0))
+    .slice(0, 12);
+  return {
+    generatedAt: new Date().toISOString(),
+    mode: "free-data-ai-mispricing-screen",
+    universe: "自选股 + A股AI/先进科技主题池 + 美股AI核心池",
+    symbols: universe.map((item) => item.symbol),
+    universeBreakdown: {
+      watchlist: watchlist.symbols.length,
+      aiThemePool: advancedThemeUniverse.filter((item) => isAiRelatedThemeText(`${item.theme} ${item.thesis}`)).length,
+      usAiCore: aiMispricingUniverse.length,
+      scanned: universe.length,
+      completed: valid.length,
+      failed: errors.length,
+    },
+    undervalued,
+    overvalued,
+    errors,
+    notes: [
+      "这是AI主题错价研究候选池，不是最终买卖指令。",
+      "潜在低估要求同时看AI路径、证据、估值支持和未充分定价；严重高估看估值、涨幅、证据缺口和基本面承接。",
+      "免费源缺少一致预期、订单数据库和实时盘口，因此所有候选都必须进入公告/财报/原文核验和模拟盘复盘。",
+    ],
+  };
 }
 
 async function buildDailyPicks(options = {}) {
@@ -6293,6 +6689,29 @@ const server = http.createServer(async (request, response) => {
       sendJson(response, 200, {
         latest: await readLatestResult(NIGHTLY_DEEP_DIVE_CACHE_FILE),
         runningJob: publicJob(getRunningJob("nightly-deep-dive"), false),
+      });
+      return;
+    }
+    if (requestUrl.pathname === "/api/ai-mispricing") {
+      const limit = Number(requestUrl.searchParams.get("limit") || 72);
+      sendJson(response, 200, await buildAiMispricingScan({ limit }));
+      return;
+    }
+    if (requestUrl.pathname === "/api/ai-mispricing/job") {
+      const limit = Number(requestUrl.searchParams.get("limit") || 72);
+      const job = startBackgroundJob({
+        type: "ai-mispricing",
+        label: "AI错误定价扫描",
+        cacheFile: AI_MISPRICING_CACHE_FILE,
+        task: () => buildAiMispricingScan({ limit }),
+      });
+      sendJson(response, 200, { job: publicJob(job, false), latest: await readLatestResult(AI_MISPRICING_CACHE_FILE) });
+      return;
+    }
+    if (requestUrl.pathname === "/api/ai-mispricing/latest") {
+      sendJson(response, 200, {
+        latest: await readLatestResult(AI_MISPRICING_CACHE_FILE),
+        runningJob: publicJob(getRunningJob("ai-mispricing"), false),
       });
       return;
     }

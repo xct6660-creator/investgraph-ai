@@ -1305,6 +1305,7 @@ main {
 
 .daily-picks-card,
 .daily-cycle-card,
+.ai-mispricing-card,
 .nightly-card,
 .diagnostics-card,
 .investor-qa-card,
@@ -1408,6 +1409,7 @@ main {
 .paper-list,
 .daily-pick-list,
 .daily-cycle-list,
+.ai-mispricing-list,
 .nightly-list,
 .diagnostics-list,
 .investor-qa-list,
@@ -1417,6 +1419,94 @@ main {
 .source-list {
   display: grid;
   gap: 10px;
+}
+
+.mispricing-summary {
+  display: grid;
+  gap: 10px;
+}
+
+.mispricing-summary p {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.ai-mispricing-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.mispricing-column {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0c1118;
+}
+
+.mispricing-column-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted);
+  font-size: 13px;
+}
+
+.mispricing-column-head strong {
+  color: var(--text);
+  font-size: 15px;
+}
+
+.mispricing-item {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #10141b;
+}
+
+.mispricing-item p,
+.mispricing-evidence span,
+.mispricing-risk span,
+.mispricing-next {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.55;
+}
+
+.mispricing-evidence,
+.mispricing-risk {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+  padding: 9px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  background: #0e1218;
+}
+
+.mispricing-evidence small {
+  color: var(--muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.mispricing-evidence a {
+  color: var(--accent);
+  font-weight: 800;
+}
+
+.mispricing-next {
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
 }
 
 .outcome-head {
@@ -2061,6 +2151,7 @@ td {
   .content-grid,
   .evidence-grid,
   .profit-grid,
+  .ai-mispricing-grid,
   .outcome-row {
     grid-template-columns: 1fr;
   }

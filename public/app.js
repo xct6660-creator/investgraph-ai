@@ -19,6 +19,7 @@ const state = {
   paper: null,
   dailyPicks: null,
   cycle: null,
+  aiMispricing: null,
   nightly: null,
   diagnostics: null,
   review: null,
@@ -77,6 +78,7 @@ const elements = {
   paperButton: document.querySelector("#paper-button"),
   dailyPicksButton: document.querySelector("#daily-picks-button"),
   cycleButton: document.querySelector("#cycle-button"),
+  aiMispricingButton: document.querySelector("#ai-mispricing-button"),
   nightlyButton: document.querySelector("#nightly-button"),
   diagnosticsButton: document.querySelector("#diagnostics-button"),
   reviewButton: document.querySelector("#review-button"),
@@ -86,6 +88,7 @@ const elements = {
   paperPortfolio: document.querySelector("#paper-portfolio"),
   dailyPicks: document.querySelector("#daily-picks"),
   dailyCycle: document.querySelector("#daily-cycle"),
+  aiMispricing: document.querySelector("#ai-mispricing"),
   nightlyDeepDive: document.querySelector("#nightly-deep-dive"),
   systemDiagnostics: document.querySelector("#system-diagnostics"),
   investorQa: document.querySelector("#investor-qa"),
@@ -673,6 +676,7 @@ function renderWorkbenchStaticPlaceholders() {
   elements.paperPortfolio.innerHTML = '<div class="empty-state">正在读取本地模拟盘账户...</div>';
   elements.dailyPicks.innerHTML = '<div class="empty-state">点击“推荐”会扫描自选股和前沿主题池，生成当天候选池。</div>';
   elements.dailyCycle.innerHTML = '<div class="empty-state">点击“闭环”会执行：推荐扫描、信号过滤、模拟买卖、组合风控和复盘。</div>';
+  elements.aiMispricing.innerHTML = '<div class="empty-state">点击“AI错价”会扫描A股和美股AI相关公司，分出潜在低估和严重高估候选。</div>';
   elements.nightlyDeepDive.innerHTML = '<div class="empty-state">点击“深挖”会把更多自选和主题池放到后台跑，完成后缓存给第二天看。</div>';
   elements.systemDiagnostics.innerHTML = '<div class="empty-state">点击“自检”会检查数据源、扫描速度、模拟盘、风控和复盘样本。</div>';
   elements.investorQa.innerHTML = '<div class="empty-state">正在用投资者视角检查：废话、缺证据、乱推荐和模拟验证缺口。</div>';
@@ -1155,6 +1159,140 @@ function renderDailyCycle() {
   `;
 }
 
+async function runAiMispricingScan() {
+  setButtonBusy(elements.aiMispricingButton, true, "AI错价");
+  elements.aiMispricing.innerHTML = jobNoticeHtml(
+    "AI错价扫描后台运行中",
+    null,
+    "正在扫描自选股、A股AI/先进科技主题池和美股AI核心池；先做研究候选，不直接给实盘指令。",
+  );
+  try {
+    const payload = await apiJson("/api/ai-mispricing/job?limit=72");
+    state.jobs.aiMispricing = payload.job;
+    if (payload.latest) {
+      state.aiMispricing = payload.latest;
+      renderAiMispricing();
+      prependJobNotice(elements.aiMispricing, "正在后台刷新AI错价扫描", payload.job, "先显示最近一次结果；新结果完成后会自动替换。");
+    } else {
+      elements.aiMispricing.innerHTML = jobNoticeHtml("正在后台生成第一份AI错价扫描", payload.job);
+    }
+    setButtonBusy(elements.aiMispricingButton, false, "AI错价");
+    pollJob(payload.job, {
+      onDone: (result) => {
+        state.aiMispricing = result;
+        renderAiMispricing();
+        prependJobNotice(elements.aiMispricing, "AI错价扫描已更新", payload.job, "这是后台任务刚生成的新结果。");
+      },
+      onFail: (message) => {
+        elements.aiMispricing.innerHTML = `<div class="empty-state">${escapeHtml(message)}</div>`;
+      },
+      onSettled: () => setButtonBusy(elements.aiMispricingButton, false, "AI错价"),
+    });
+  } catch (error) {
+    elements.aiMispricing.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    setButtonBusy(elements.aiMispricingButton, false, "AI错价");
+  }
+}
+
+function aiMispricingColumnHtml(title, items, kind) {
+  const emptyText = kind === "undervalued" ? "本轮没有足够可信的低估候选。" : "本轮没有足够可信的高估候选。";
+  return `
+    <section class="mispricing-column ${kind}">
+      <div class="mispricing-column-head">
+        <strong>${escapeHtml(title)}</strong>
+        <span>${escapeHtml(items.length)} 个候选</span>
+      </div>
+      ${
+        items.length
+          ? items
+              .slice(0, 6)
+              .map(
+                (item) => `
+                  <article class="mispricing-item">
+                    <div class="pick-head">
+                      <button class="link-button" type="button" data-load-symbol="${escapeHtml(item.symbol)}" title="${escapeHtml(item.symbol)}">
+                        ${escapeHtml(item.companyName || displayStockName(item))}
+                      </button>
+                      <div class="pick-score-row">
+                        <strong class="signal-badge ${kind === "undervalued" ? "is-buy" : "is-sell"}">${escapeHtml(item.action || item.mispricingSide)}</strong>
+                        <strong class="pick-score">${escapeHtml(item.score ?? "-")}分</strong>
+                      </div>
+                    </div>
+                    <div class="pick-tags">
+                      <span>${escapeHtml(item.market || "-")}</span>
+                      <span>${escapeHtml(item.aiPathway || item.theme || "AI路径待核验")}</span>
+                      <span>PE ${escapeHtml(item.pe ?? "-")}</span>
+                      <span>1月 ${escapeHtml(formatPct(item.return1m))}</span>
+                    </div>
+                    <p>${escapeHtml(item.why || "暂无错价解释。")}</p>
+                    <div class="mispricing-evidence">
+                      <strong>关键证据</strong>
+                      <span>${escapeHtml(shortText(item.evidence || "暂无可验证证据。", 150))}</span>
+                      ${(item.evidenceItems || [])
+                        .slice(0, 2)
+                        .map(
+                          (evidence) => `
+                            <small>
+                              ${escapeHtml(evidence.catalystType || "线索")} · ${escapeHtml(evidence.source || "来源")} ·
+                              ${evidence.url ? `<a href="${escapeHtml(evidence.url)}" target="_blank" rel="noreferrer">原文</a>` : escapeHtml(shortText(evidence.title || evidence.summary || "", 80))}
+                            </small>
+                          `,
+                        )
+                        .join("")}
+                    </div>
+                    <div class="mispricing-risk">
+                      <strong>第一反证</strong>
+                      <span>${escapeHtml(item.firstRejection || "需要继续核验。")}</span>
+                    </div>
+                    <div class="mispricing-next">${escapeHtml(item.nextWorkflow || "下一步进入人工核验和模拟盘观察。")}</div>
+                  </article>
+                `,
+              )
+              .join("")
+          : `<div class="empty-state">${escapeHtml(emptyText)}</div>`
+      }
+    </section>
+  `;
+}
+
+function renderAiMispricing() {
+  const payload = state.aiMispricing;
+  if (!payload) {
+    elements.aiMispricing.innerHTML = '<div class="empty-state">暂无AI错价扫描缓存。点击“AI错价”后台跑一轮，完成后会保留最近结果。</div>';
+    return;
+  }
+  const undervalued = payload.undervalued || [];
+  const overvalued = payload.overvalued || [];
+  const breakdown = payload.universeBreakdown || {};
+  elements.aiMispricing.innerHTML = `
+    <div class="mispricing-summary">
+      <div class="mini-metrics compact-metrics">
+        ${metricBox("扫描", breakdown.completed ?? breakdown.scanned ?? "-")}
+        ${metricBox("低估候选", undervalued.length)}
+        ${metricBox("高估候选", overvalued.length)}
+        ${metricBox("更新时间", formatDateTime(payload.generatedAt))}
+        ${metricBox("A股主题池", breakdown.aiThemePool ?? "-")}
+        ${metricBox("美股AI池", breakdown.usAiCore ?? "-")}
+      </div>
+      <p>这是研究候选池：低估侧看AI路径、证据、估值支持和未充分定价；高估侧看估值、涨幅、证据缺口和基本面承接。</p>
+    </div>
+    <div class="ai-mispricing-grid">
+      ${aiMispricingColumnHtml("潜在低估候选", undervalued, "undervalued")}
+      ${aiMispricingColumnHtml("严重高估候选", overvalued, "overvalued")}
+    </div>
+    ${
+      (payload.notes || []).length
+        ? `<div class="warning-list">${payload.notes.slice(0, 3).map((note) => `<p>${escapeHtml(note)}</p>`).join("")}</div>`
+        : ""
+    }
+    ${
+      (payload.errors || []).length
+        ? `<div class="warning-list">${payload.errors.slice(0, 4).map((item) => `<p>${escapeHtml(item.symbol)}：${escapeHtml(item.error)}</p>`).join("")}</div>`
+        : ""
+    }
+  `;
+}
+
 async function runNightlyDeepDive() {
   setButtonBusy(elements.nightlyButton, true, "深挖");
   elements.nightlyDeepDive.innerHTML = jobNoticeHtml(
@@ -1241,10 +1379,11 @@ function renderNightlyDeepDive() {
 }
 
 async function loadLatestBackgroundResults() {
-  const [briefingResult, picksResult, cycleResult, nightlyResult] = await Promise.allSettled([
+  const [briefingResult, picksResult, cycleResult, aiMispricingResult, nightlyResult] = await Promise.allSettled([
     apiJson("/api/briefing/latest"),
     apiJson("/api/daily-picks/latest"),
     apiJson("/api/daily-cycle/latest"),
+    apiJson("/api/ai-mispricing/latest"),
     apiJson("/api/nightly-deep-dive/latest"),
   ]);
   if (briefingResult.status === "fulfilled") {
@@ -1330,6 +1469,28 @@ async function loadLatestBackgroundResults() {
           prependJobNotice(elements.dailyCycle, "实战闭环后台任务失败", payload.runningJob, message);
         },
         onSettled: () => setButtonBusy(elements.cycleButton, false, "闭环"),
+      });
+    }
+  }
+  if (aiMispricingResult.status === "fulfilled") {
+    const payload = aiMispricingResult.value;
+    if (payload.latest) {
+      state.aiMispricing = payload.latest;
+      renderAiMispricing();
+    }
+    if (payload.runningJob) {
+      setButtonBusy(elements.aiMispricingButton, true, "AI错价");
+      prependJobNotice(elements.aiMispricing, "AI错价扫描后台任务仍在运行", payload.runningJob, "保留最近结果，任务完成后自动刷新。");
+      pollJob(payload.runningJob, {
+        onDone: (result) => {
+          state.aiMispricing = result;
+          renderAiMispricing();
+          prependJobNotice(elements.aiMispricing, "AI错价扫描已更新", payload.runningJob);
+        },
+        onFail: (message) => {
+          prependJobNotice(elements.aiMispricing, "AI错价扫描后台任务失败", payload.runningJob, message);
+        },
+        onSettled: () => setButtonBusy(elements.aiMispricingButton, false, "AI错价"),
       });
     }
   }
@@ -2736,6 +2897,7 @@ elements.planButton.addEventListener("click", generateTradePlan);
 elements.paperButton.addEventListener("click", generatePaperRecommendation);
 elements.dailyPicksButton.addEventListener("click", generateDailyPicks);
 elements.cycleButton.addEventListener("click", runDailyCycle);
+elements.aiMispricingButton.addEventListener("click", runAiMispricingScan);
 elements.nightlyButton.addEventListener("click", runNightlyDeepDive);
 elements.diagnosticsButton.addEventListener("click", runDiagnostics);
 elements.reviewButton.addEventListener("click", runAutoReview);

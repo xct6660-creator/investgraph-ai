@@ -113,3 +113,12 @@ test("nightly deep dive latest endpoint is cache friendly", async (t) => {
   assert.equal(Object.hasOwn(payload, "latest"), true);
   assert.equal(Object.hasOwn(payload, "runningJob"), true);
 });
+
+test("ai mispricing latest endpoint is cache friendly", async (t) => {
+  const { baseUrl } = await withServer(t);
+  const response = await fetch(`${baseUrl}/api/ai-mispricing/latest`);
+  assert.equal(response.status, 200);
+  const payload = await response.json();
+  assert.equal(Object.hasOwn(payload, "latest"), true);
+  assert.equal(Object.hasOwn(payload, "runningJob"), true);
+});
