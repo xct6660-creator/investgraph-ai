@@ -4,6 +4,7 @@ const fs = require("node:fs/promises");
 const os = require("node:os");
 const path = require("node:path");
 const { URL } = require("node:url");
+const { splitAiMispricingCandidates } = require("./lib/ai-mispricing");
 
 const ROOT = __dirname;
 loadLocalEnv(path.join(ROOT, ".env"));
@@ -4207,32 +4208,9 @@ async function buildAiMispricingScan(options = {}) {
     .map((item, index) => (item?.error ? { symbol: universe[index]?.symbol, companyName: displayNameForSymbol(universe[index]?.symbol), error: item.error } : null))
     .filter(Boolean)
     .slice(0, 12);
-  const undervalued = valid
-    .map((item) => ({
-      ...item,
-      mispricingSide: "潜在低估",
-      score: item.undervaluedCase.score,
-      action: item.undervaluedCase.label,
-      why: item.undervaluedCase.why,
-      evidence: item.undervaluedCase.evidence,
-      firstRejection: item.undervaluedCase.firstRejection,
-      nextWorkflow: item.undervaluedCase.nextWorkflow,
-    }))
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 12);
-  const overvalued = valid
-    .map((item) => ({
-      ...item,
-      mispricingSide: "严重高估",
-      score: item.overvaluedCase.score,
-      action: item.overvaluedCase.label,
-      why: item.overvaluedCase.why,
-      evidence: item.overvaluedCase.evidence,
-      firstRejection: item.overvaluedCase.firstRejection,
-      nextWorkflow: item.overvaluedCase.nextWorkflow,
-    }))
-    .sort((a, b) => (b.score || 0) - (a.score || 0))
-    .slice(0, 12);
+  const split = splitAiMispricingCandidates(valid, 12);
+  const undervalued = split.undervalued;
+  const overvalued = split.overvalued;
   return {
     generatedAt: new Date().toISOString(),
     mode: "free-data-ai-mispricing-screen",
@@ -4245,13 +4223,16 @@ async function buildAiMispricingScan(options = {}) {
       scanned: universe.length,
       completed: valid.length,
       failed: errors.length,
+      rejected: split.rejected.length,
     },
     undervalued,
     overvalued,
+    rejected: split.rejected.slice(0, 12),
     errors,
     notes: [
       "这是AI主题错价研究候选池，不是最终买卖指令。",
-      "潜在低估要求同时看AI路径、证据、估值支持和未充分定价；严重高估看估值、涨幅、证据缺口和基本面承接。",
+      "潜在低估要求同时看AI路径、证据、估值支持和未充分定价；低估证据不足不会进入低估栏。",
+      "同一股票只会进入分数更强且证据过线的一侧，避免同时显示高估和低估。",
       "免费源缺少一致预期、订单数据库和实时盘口，因此所有候选都必须进入公告/财报/原文核验和模拟盘复盘。",
     ],
   };
