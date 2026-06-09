@@ -1306,6 +1306,7 @@ main {
 .daily-picks-card,
 .daily-cycle-card,
 .ai-mispricing-card,
+.verdict-card,
 .nightly-card,
 .diagnostics-card,
 .investor-qa-card,
@@ -1476,6 +1477,7 @@ main {
 .mispricing-item p,
 .mispricing-evidence span,
 .mispricing-risk span,
+.mispricing-final span,
 .mispricing-next {
   color: var(--muted);
   font-size: 13px;
@@ -1483,7 +1485,8 @@ main {
 }
 
 .mispricing-evidence,
-.mispricing-risk {
+.mispricing-risk,
+.mispricing-final {
   display: grid;
   gap: 4px;
   min-width: 0;
@@ -1491,6 +1494,12 @@ main {
   border: 1px solid rgba(148, 163, 184, 0.14);
   border-radius: 8px;
   background: #0e1218;
+}
+
+.mispricing-final {
+  grid-template-columns: auto minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
 }
 
 .mispricing-evidence small {
@@ -1507,6 +1516,87 @@ main {
 .mispricing-next {
   padding-left: 10px;
   border-left: 3px solid var(--accent);
+}
+
+.valuation-verdict,
+.verdict-card-body,
+.verdict-ledger-grid,
+.verdict-source-list {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.verdict-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  min-width: 0;
+}
+
+.verdict-head div {
+  display: grid;
+  gap: 3px;
+  min-width: 0;
+}
+
+.verdict-head strong:first-child {
+  overflow-wrap: anywhere;
+  font-size: 18px;
+}
+
+.verdict-head span,
+.verdict-summary,
+.verdict-action,
+.verdict-rule,
+.verdict-ledger-block span,
+.verdict-source-list span {
+  color: var(--muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.verdict-summary-row {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.verdict-summary {
+  padding: 10px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: #0e1218;
+}
+
+.verdict-action {
+  padding-left: 10px;
+  border-left: 3px solid var(--accent);
+  font-weight: 800;
+}
+
+.verdict-ledger-grid {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.verdict-ledger-block,
+.verdict-source-list {
+  padding: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 8px;
+  background: #0e1218;
+}
+
+.verdict-ledger-block {
+  display: grid;
+  align-content: start;
+  gap: 5px;
+}
+
+.verdict-source-list a {
+  color: var(--accent);
+  font-weight: 900;
 }
 
 .outcome-head {
@@ -2152,6 +2242,7 @@ td {
   .evidence-grid,
   .profit-grid,
   .ai-mispricing-grid,
+  .verdict-ledger-grid,
   .outcome-row {
     grid-template-columns: 1fr;
   }

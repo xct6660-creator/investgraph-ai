@@ -81,3 +81,65 @@ test("ai mispricing split excludes insufficient low-evidence names and keeps buc
     assert.equal(highSymbols.has(symbol), false, `${symbol} should not appear in both buckets`);
   }
 });
+
+test("ai mispricing split follows final evidence verdict before raw scores", () => {
+  const rows = [
+    {
+      symbol: "688072.SS",
+      companyName: "拓荆科技",
+      finalVerdict: {
+        classification: "overvalued",
+        label: "高估",
+        summary: "估值和预期已经走在主营证据前面。",
+      },
+      undervaluedCase: {
+        score: 72,
+        label: "优先深挖",
+      },
+      overvaluedCase: {
+        score: 66,
+        label: "估值门槛",
+      },
+    },
+    {
+      symbol: "TESTLOW",
+      companyName: "低估样本",
+      finalVerdict: {
+        classification: "undervalued",
+        label: "低估",
+        summary: "低估证据过线。",
+      },
+      undervaluedCase: {
+        score: 68,
+        label: "观察低估",
+      },
+      overvaluedCase: {
+        score: 70,
+        label: "估值门槛",
+      },
+    },
+    {
+      symbol: "TESTMISS",
+      companyName: "证据不足样本",
+      finalVerdict: {
+        classification: "insufficient",
+        label: "证据不足",
+        summary: "证据链不足。",
+      },
+      undervaluedCase: {
+        score: 80,
+        label: "优先深挖",
+      },
+      overvaluedCase: {
+        score: 80,
+        label: "高估警报",
+      },
+    },
+  ];
+
+  const { undervalued, overvalued, rejected } = splitAiMispricingCandidates(rows, 12);
+
+  assert.deepEqual(undervalued.map((item) => item.symbol), ["TESTLOW"]);
+  assert.deepEqual(overvalued.map((item) => item.symbol), ["688072.SS"]);
+  assert.deepEqual(rejected.map((item) => item.symbol), ["TESTMISS"]);
+});

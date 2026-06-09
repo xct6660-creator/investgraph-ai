@@ -5,6 +5,7 @@ const os = require("node:os");
 const path = require("node:path");
 const { URL } = require("node:url");
 const { splitAiMispricingCandidates } = require("./lib/ai-mispricing");
+const { buildEvidenceValuationVerdict } = require("./lib/valuation-verdict");
 
 const ROOT = __dirname;
 loadLocalEnv(path.join(ROOT, ".env"));
@@ -934,6 +935,7 @@ function isAshareTradingMinute(time) {
 }
 
 function safeNumber(value) {
+  if (value === null || value === undefined || value === "") return null;
   const number = Number(value);
   return Number.isFinite(number) ? number : null;
 }
@@ -4132,6 +4134,18 @@ function scoreAiMispricingCandidate(universeItem, analysis) {
     evidenceVerdict: evidenceReview.verdict || "",
     topDriver: analysis.memo?.topDriver || analysis.drivers?.[0]?.title || "",
     evidenceItems,
+    financialEvidence: {
+      period: analysis.sec?.fiscalYear || analysis.sec?.period || null,
+      reportDate: analysis.sec?.reportDate || null,
+      noticeDate: analysis.sec?.noticeDate || null,
+      revenue: analysis.sec?.revenue ?? null,
+      revenueGrowthPct: Number.isFinite(analysis.sec?.revenueGrowth) ? analysis.sec.revenueGrowth : null,
+      netIncome: analysis.sec?.netIncome ?? null,
+      netMarginPct: Number.isFinite(analysis.sec?.netMargin) ? analysis.sec.netMargin : null,
+      operatingCashFlow: analysis.sec?.operatingCashFlow ?? null,
+      debtRatio: analysis.sec?.debtRatio ?? null,
+      source: analysis.sec?.source || fundamentals.source || "",
+    },
     scores: {
       undervalued: round(undervaluedScore, 1),
       overvalued: round(overvaluedScore, 1),
@@ -4148,7 +4162,7 @@ function scoreAiMispricingCandidate(universeItem, analysis) {
       `证据置信度${round(evidenceReview.confidence, 1) ?? "-"}，硬事实${evidenceReview.hardEvidenceCount || 0}条`,
     ],
   };
-  return {
+  const candidate = {
     ...base,
     undervaluedCase: {
       score: round(undervaluedScore, 1),
@@ -4188,6 +4202,49 @@ function scoreAiMispricingCandidate(universeItem, analysis) {
           : "若没有新订单、客户或利润改善，高估风险会继续上升。",
       nextWorkflow: "加入复盘观察：跟踪未来1/5/20日表现、下一次公告和财报是否兑现AI叙事。",
     },
+  };
+  return {
+    ...candidate,
+    finalVerdict: buildEvidenceValuationVerdict(candidate),
+  };
+}
+
+async function buildSingleEvidenceVerdict(inputSymbol) {
+  const analysis = await analyzeSymbol(inputSymbol, {
+    fetchEvidenceSourceText: true,
+    evidenceSourceTextLimit: 6,
+  });
+  const theme = aiPathwayForCandidate({ theme: "", source: "单股证据裁决" }, analysis);
+  const candidate = scoreAiMispricingCandidate(
+    {
+      symbol: analysis.symbol,
+      source: "单股证据裁决",
+      theme,
+      thesis: "对当前股票逐项核验证据后，只输出低估、高估或证据不足。",
+    },
+    analysis,
+  );
+  return {
+    generatedAt: new Date().toISOString(),
+    symbol: analysis.symbol,
+    companyName: candidate.companyName || analysis.companyName,
+    verdict: candidate.finalVerdict,
+    candidate,
+    evidenceReview: analysis.evidenceReview,
+    fundamentals: analysis.fundamentals,
+    financialEvidence: candidate.financialEvidence,
+    news: (analysis.news || []).slice(0, 8).map((item) => ({
+      title: item.title,
+      source: item.source,
+      summary: item.summary,
+      url: item.url,
+      publishedAt: item.publishedAt,
+      evidence: item.evidence,
+    })),
+    notes: [
+      "该裁决只使用已抓到的公开免费数据；若缺少一致预期、订单数据库或实时盘口，会明确降级为证据不足。",
+      "最终分类优先服从证据门槛：低估必须通过估值、主营兑现、硬证据和未充分定价；高估看估值透支、预期过热、证据缺口和利润质量。",
+    ],
   };
 }
 
@@ -6694,6 +6751,11 @@ const server = http.createServer(async (request, response) => {
         latest: await readLatestResult(AI_MISPRICING_CACHE_FILE),
         runningJob: publicJob(getRunningJob("ai-mispricing"), false),
       });
+      return;
+    }
+    if (requestUrl.pathname === "/api/evidence-verdict") {
+      const symbol = requestUrl.searchParams.get("symbol") || "688122";
+      sendJson(response, 200, await buildSingleEvidenceVerdict(symbol));
       return;
     }
     if (requestUrl.pathname.startsWith("/api/jobs/")) {

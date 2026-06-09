@@ -20,6 +20,7 @@ const state = {
   dailyPicks: null,
   cycle: null,
   aiMispricing: null,
+  valuationVerdict: null,
   nightly: null,
   diagnostics: null,
   review: null,
@@ -79,6 +80,7 @@ const elements = {
   dailyPicksButton: document.querySelector("#daily-picks-button"),
   cycleButton: document.querySelector("#cycle-button"),
   aiMispricingButton: document.querySelector("#ai-mispricing-button"),
+  verdictButton: document.querySelector("#verdict-button"),
   nightlyButton: document.querySelector("#nightly-button"),
   diagnosticsButton: document.querySelector("#diagnostics-button"),
   reviewButton: document.querySelector("#review-button"),
@@ -89,6 +91,7 @@ const elements = {
   dailyPicks: document.querySelector("#daily-picks"),
   dailyCycle: document.querySelector("#daily-cycle"),
   aiMispricing: document.querySelector("#ai-mispricing"),
+  valuationVerdict: document.querySelector("#valuation-verdict"),
   nightlyDeepDive: document.querySelector("#nightly-deep-dive"),
   systemDiagnostics: document.querySelector("#system-diagnostics"),
   investorQa: document.querySelector("#investor-qa"),
@@ -677,6 +680,7 @@ function renderWorkbenchStaticPlaceholders() {
   elements.dailyPicks.innerHTML = '<div class="empty-state">点击“推荐”会扫描自选股和前沿主题池，生成当天候选池。</div>';
   elements.dailyCycle.innerHTML = '<div class="empty-state">点击“闭环”会执行：推荐扫描、信号过滤、模拟买卖、组合风控和复盘。</div>';
   elements.aiMispricing.innerHTML = '<div class="empty-state">点击“AI错价”会扫描A股和美股AI相关公司，分出潜在低估和严重高估候选。</div>';
+  elements.valuationVerdict.innerHTML = '<div class="empty-state">点击“裁决”会深挖当前股票证据，只输出低估、高估或证据不足。</div>';
   elements.nightlyDeepDive.innerHTML = '<div class="empty-state">点击“深挖”会把更多自选和主题池放到后台跑，完成后缓存给第二天看。</div>';
   elements.systemDiagnostics.innerHTML = '<div class="empty-state">点击“自检”会检查数据源、扫描速度、模拟盘、风控和复盘样本。</div>';
   elements.investorQa.innerHTML = '<div class="empty-state">正在用投资者视角检查：废话、缺证据、乱推荐和模拟验证缺口。</div>';
@@ -713,10 +717,12 @@ function resetProfitWorkbench(symbol) {
   state.profitRunId += 1;
   state.backtest = null;
   state.tradePlan = null;
+  state.valuationVerdict = null;
   const label = symbol ? ` ${symbol}` : "";
   elements.backtestSummary.innerHTML = `<div class="empty-state">等待${escapeHtml(label)}基础分析完成后自动回测。</div>`;
   elements.signalStats.innerHTML = "";
   elements.tradePlan.innerHTML = `<div class="empty-state">等待${escapeHtml(label)}行情和证据数据后自动生成仓位方案。</div>`;
+  elements.valuationVerdict.innerHTML = `<div class="empty-state">等待${escapeHtml(label)}基础分析完成；需要最终高估/低估判断时点击“裁决”。</div>`;
 }
 
 async function refreshProfitWorkbench() {
@@ -1207,7 +1213,9 @@ function aiMispricingColumnHtml(title, items, kind) {
           ? items
               .slice(0, 6)
               .map(
-                (item) => `
+                (item) => {
+                  const verdict = item.finalVerdict || null;
+                  return `
                   <article class="mispricing-item">
                     <div class="pick-head">
                       <button class="link-button" type="button" data-load-symbol="${escapeHtml(item.symbol)}" title="${escapeHtml(item.symbol)}">
@@ -1224,6 +1232,13 @@ function aiMispricingColumnHtml(title, items, kind) {
                       <span>PE ${escapeHtml(item.pe ?? "-")}</span>
                       <span>1月 ${escapeHtml(formatPct(item.return1m))}</span>
                     </div>
+                    ${
+                      verdict
+                        ? `<div class="mispricing-final"><strong class="signal-badge ${verdictClass(verdict.label)}">最终：${escapeHtml(verdict.label)}</strong><span>${escapeHtml(
+                            shortText(verdict.summary || "", 120),
+                          )}</span></div>`
+                        : ""
+                    }
                     <p>${escapeHtml(item.why || "暂无错价解释。")}</p>
                     <div class="mispricing-evidence">
                       <strong>关键证据</strong>
@@ -1246,7 +1261,8 @@ function aiMispricingColumnHtml(title, items, kind) {
                     </div>
                     <div class="mispricing-next">${escapeHtml(item.nextWorkflow || "下一步进入人工核验和模拟盘观察。")}</div>
                   </article>
-                `,
+                `;
+                },
               )
               .join("")
           : `<div class="empty-state">${escapeHtml(emptyText)}</div>`
@@ -1291,6 +1307,94 @@ function renderAiMispricing() {
         : ""
     }
   `;
+}
+
+function verdictClass(label) {
+  if (label === "低估") return "is-buy";
+  if (label === "高估") return "is-sell";
+  return "is-watch";
+}
+
+function verdictLedgerBlock(title, items) {
+  const rows = (items || []).filter(Boolean);
+  return `
+    <div class="verdict-ledger-block">
+      <b>${escapeHtml(title)}</b>
+      ${
+        rows.length
+          ? rows.map((item) => `<span>${escapeHtml(item)}</span>`).join("")
+          : "<span>暂无有效数据。</span>"
+      }
+    </div>
+  `;
+}
+
+function renderValuationVerdict() {
+  const payload = state.valuationVerdict;
+  if (!payload?.verdict) {
+    elements.valuationVerdict.innerHTML = '<div class="empty-state">点击“裁决”会抓取当前股票的公开证据，输出最终高估/低估判断。</div>';
+    return;
+  }
+  const verdict = payload.verdict;
+  const ledger = verdict.evidenceLedger || {};
+  const sourceEvidence = ledger.sourceEvidence || [];
+  elements.valuationVerdict.innerHTML = `
+    <article class="verdict-card-body">
+      <div class="verdict-head">
+        <div>
+          <strong>${escapeHtml(payload.companyName || payload.symbol)}</strong>
+          <span>${escapeHtml(payload.symbol)} · ${escapeHtml(formatDateTime(payload.generatedAt))}</span>
+        </div>
+        <strong class="signal-badge ${verdictClass(verdict.label)}">最终：${escapeHtml(verdict.label)}</strong>
+      </div>
+      <div class="verdict-summary-row">
+        ${metricBox("置信度", `${escapeHtml(verdict.confidence ?? "-")}%`)}
+        ${metricBox("分类", verdict.classification || "-")}
+        ${metricBox("硬证据", payload.evidenceReview?.hardEvidenceCount ?? "-")}
+      </div>
+      <p class="verdict-summary">${escapeHtml(verdict.summary || "暂无裁决摘要。")}</p>
+      <div class="verdict-action">${escapeHtml(verdict.action || "先观察。")}</div>
+      <div class="verdict-ledger-grid">
+        ${verdictLedgerBlock("估值证据", ledger.valuation)}
+        ${verdictLedgerBlock("经营证据", ledger.operating)}
+        ${verdictLedgerBlock("市场反应", ledger.market)}
+        ${verdictLedgerBlock("缺口/反证", ledger.missing)}
+      </div>
+      <div class="verdict-source-list">
+        <b>原文证据</b>
+        ${
+          sourceEvidence.length
+            ? sourceEvidence
+                .map(
+                  (item) => `
+                    <span>
+                      <strong>${escapeHtml(item.source || "来源")}</strong>
+                      ${escapeHtml(shortText(item.title || item.summary || "暂无标题", 130))}
+                      ${item.url ? `<a href="${escapeHtml(item.url)}" target="_blank" rel="noreferrer">原文</a>` : ""}
+                    </span>
+                  `,
+                )
+                .join("")
+            : "<span>没有抓到足够原文证据，系统会保持保守。</span>"
+        }
+      </div>
+      <small class="verdict-rule">${escapeHtml(verdict.decisionRule || "")}</small>
+    </article>
+  `;
+}
+
+async function runEvidenceVerdict() {
+  setButtonBusy(elements.verdictButton, true, "裁决");
+  elements.valuationVerdict.innerHTML = '<div class="empty-state">正在深挖公告、新闻、财务、估值和市场反应，然后做最终裁决...</div>';
+  try {
+    const payload = await apiJson(`/api/evidence-verdict?symbol=${encodeURIComponent(currentSymbol())}`);
+    state.valuationVerdict = payload;
+    renderValuationVerdict();
+  } catch (error) {
+    elements.valuationVerdict.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  } finally {
+    setButtonBusy(elements.verdictButton, false, "裁决");
+  }
 }
 
 async function runNightlyDeepDive() {
@@ -2898,6 +3002,7 @@ elements.paperButton.addEventListener("click", generatePaperRecommendation);
 elements.dailyPicksButton.addEventListener("click", generateDailyPicks);
 elements.cycleButton.addEventListener("click", runDailyCycle);
 elements.aiMispricingButton.addEventListener("click", runAiMispricingScan);
+elements.verdictButton.addEventListener("click", runEvidenceVerdict);
 elements.nightlyButton.addEventListener("click", runNightlyDeepDive);
 elements.diagnosticsButton.addEventListener("click", runDiagnostics);
 elements.reviewButton.addEventListener("click", runAutoReview);
